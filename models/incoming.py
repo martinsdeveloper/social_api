@@ -1,16 +1,15 @@
+from pydantic import BaseModel
+from typing import Optional
 
-
-
-# Sample data
-users = {}
-posts = {}
-followers = {}
-
-# Models
-class User(BaseModel):
-    username: str
+class CreateUserPayload(BaseModel):
+    source_site: str
+    full_name: str
+    email: str
+    email_confirm: str
     password: str
+    password_confirm: str
 
-class Post(BaseModel):
-    content: str
-    author: str
+class UsersPayload(BaseModel):
+    source_site: str
+    full_name: Optional[str] = None
+    email: Optional[str] = None
