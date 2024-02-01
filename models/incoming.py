@@ -13,3 +13,7 @@ class UsersPayload(BaseModel):
     source_site: str
     full_name: Optional[str] = None
     email: Optional[str] = None
+
+class DeleteUserPayload(BaseModel):
+    source_site: str
+    user_id: int

@@ -1,7 +1,7 @@
 
 import models.incoming as incoming
 import models.outgoing as outgoing
-import models.base as base
+import models.db as base
 
 from sqlalchemy.orm import Session
 from typing import Union
@@ -20,7 +20,11 @@ class BaseSourceService:
     def get_users(self, payload: incoming.UsersPayload, db: Session) -> Union[outgoing.UsersList, outgoing.DefaultResponse]:
         return outgoing.UsersList(status=True, users=list(UserService.get_users(payload=payload, db=db)))
 
-    def validate_password(self, password, password_confirm, db: Session):
+    def delete_user(self, payload: incoming.CreateUserPayload, db: Session) -> Union[outgoing.CreateUserResponse, outgoing.DefaultResponse]:
+        user = UserService.delete_user(payload=payload, db=db)
+        return outgoing.UserDelete(status=True)
+
+    def validate_password(self, password, password_confirm):
         if password != password_confirm:
             return "Passwords do not match."
     
@@ -31,20 +35,36 @@ class BaseSourceService:
 class UserService:
     @staticmethod
     def save_user(payload: incoming.CreateUserPayload, db: Session):
-
         salt = bcrypt.gensalt()
         hashed_password = bcrypt.hashpw(payload.password.encode('utf-8'), salt)
         salt_str = salt.decode('utf-8')
         hashed_password_str = hashed_password.decode('utf-8')
-        
         new_user = base.User(full_name=payload.full_name, email=payload.email, password=hashed_password_str, salt=salt_str)
-        db.add(new_user)
-        db.commit()
-        db.refresh(new_user)
+        try:
+            db.add(new_user)
+            db.commit()
+            db.refresh(new_user)
+        except Exception as e:
+            print(f"Error adding user to the database: {e}")
+            db.rollback()
         return new_user
 
     @staticmethod
     def get_users(db: Session, payload: incoming.UsersPayload):
         for usr in db.query(base.User).all():
-            print( usr)
-            yield(outgoing.AuthorizedUser(full_name=usr.full_name, email=usr.email, authorized=False, is_admin=False))
+            yield(outgoing.AuthorizedUser(id=usr.id, full_name=usr.full_name, email=usr.email, authorized=False, is_admin=False))
+
+    @staticmethod
+    def delete_user(db: Session, payload: incoming.DeleteUserPayload):
+        try:
+            user_to_delete = db.query(base.User).filter(base.User.id == payload.user_id).first()
+            if user_to_delete:
+                db.delete(user_to_delete)
+                db.commit()
+            else:
+                raise Exception("User not found")
+        except Exception as e:
+            print(f"Error deleting user from the database: {e}")
+            db.rollback()
+            return outgoing.UserDelete(status=False)
+        return outgoing.UserDelete(status=True)
